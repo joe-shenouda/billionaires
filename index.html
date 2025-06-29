@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Billionaires 2024</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">World's Billionaires 2024</h1>
+            <p class="mt-2 text-lg text-gray-600">Explore the list of the wealthiest individuals in the world.</p>
+        </header>
+
+        <!-- Menu/Controls Section -->
+        <div class="bg-white rounded-lg shadow-md p-4 mb-8 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+            <div class="flex items-center space-x-4">
+                <button id="randomBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition duration-300 shadow-sm">
+                    Show Random
+                </button>
+                 <button id="showAllBtn" class="bg-gray-200 text-gray-800 font-semibold px-4 py-2 rounded-md hover:bg-gray-300 transition duration-300">
+                    Show All
+                </button>
+            </div>
+            <div class="relative w-full sm:w-64">
+                <input type="text" id="searchInput" placeholder="Search by name, country, company..." class="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div id="loading" class="text-center py-16">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p class="mt-4 text-gray-600">Loading Billionaire Data...</p>
+        </div>
+
+        <!-- Data Display Grid -->
+        <div id="billionaire-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Billionaire cards will be injected here -->
+        </div>
+
+        <!-- No Results Message -->
+        <div id="no-results" class="hidden text-center py-16">
+            <h3 class="text-2xl font-semibold text-gray-700">No Results Found</h3>
+            <p class="mt-2 text-gray-500">Try adjusting your search criteria.</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.getElementById('billionaire-grid');
+            const loading = document.getElementById('loading');
+            const randomBtn = document.getElementById('randomBtn');
+            const showAllBtn = document.getElementById('showAllBtn');
+            const searchInput = document.getElementById('searchInput');
+            const noResults = document.getElementById('no-results');
+
+            let billionaires = [];
+
+            // Using the stable raw GitHub URL.
+            const DATA_URL = "https://raw.githubusercontent.com/joe-shenouda/dev-temp/main/World_Billionaire_2024.csv";
+            
+            Papa.parse(DATA_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    loading.style.display = 'none';
+                    
+                    if (results.data && results.data.length > 0) {
+                        console.log("Parsing complete. Detected headers:", results.meta.fields);
+
+                        if (!results.meta.fields || !results.meta.fields.includes('EXECUTIVE NAME') || !results.meta.fields.includes('RANK')) {
+                            grid.innerHTML = `<p class="text-center text-red-500 col-span-full font-semibold">
+                                Parsing Error: Could not find expected columns in the data. Please check the CSV file's headers.
+                                <br><span class="font-normal text-sm text-gray-600 mt-2 block">Detected headers: ${results.meta.fields.join(', ')}</span>
+                            </p>`;
+                            return;
+                        }
+
+                        // **FIX:** Filter out the header row if it's incorrectly included in the data, and clean up the rank value.
+                        billionaires = results.data
+                            .filter(row => row.RANK !== 'RANK') // Prevents the header from being processed as data
+                            .map(d => ({
+                                rank: d['RANK'] ? d['RANK'].replace('#', '') : 'N/A', // Removes '#' to prevent '##' in display
+                                name: d['EXECUTIVE NAME'] || 'N/A',
+                                netWorth: d['NET WORTH'] ? d['NET WORTH'].replace(/[^\d.]/g, '') : 'N/A',
+                                age: 'N/A', // Age is not available in this data source
+                                country: d['COUNTRY'] || 'N/A',
+                                source: d['COMPANY'] || 'N/A', // Using 'COMPANY' for the source field
+                                industry: 'N/A' // Industry is not available in this data source
+                            }));
+                        displayBillionaires(billionaires);
+                    } else {
+                        grid.innerHTML = '<p class="text-center text-red-500 col-span-full">Error: No data was loaded from the source. The file might be empty, inaccessible, or formatted incorrectly.</p>';
+                        console.error("PapaParse Error: No data found in parsed results.", results.errors);
+                    }
+                },
+                error: function(err, file) {
+                    loading.style.display = 'none';
+                    grid.innerHTML = `<p class="text-center text-red-500 col-span-full">Failed to fetch data. The data source might be unavailable. Please check the console for more details.</p>`;
+                    console.error("PapaParse Error:", err, file);
+                }
+            });
+            
+            // Function to create a billionaire card
+            function createBillionaireCard(b) {
+                 // Note: 'Age' and 'Industry' are no longer displayed as they are not in the data source.
+                 return `
+                    <div class="card bg-white rounded-lg shadow-md p-6 flex flex-col">
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-5xl font-bold text-gray-300">#${b.rank}</span>
+                                <div class="text-right">
+                                    <h2 class="text-xl font-bold text-gray-900">${b.name}</h2>
+                                    <p class="text-sm text-gray-500">${b.country}</p>
+                                </div>
+                            </div>
+                            <div class="text-center my-4">
+                                <p class="text-4xl font-extrabold text-blue-600">$${b.netWorth}B</p>
+                                <p class="text-sm text-gray-500">Net Worth</p>
+                            </div>
+                            <div class="space-y-2 text-sm">
+                                <p><strong class="font-medium text-gray-700">Source:</strong> <span class="text-gray-600">${b.source}</span></p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Function to display billionaires in the grid
+            function displayBillionaires(data) {
+                grid.innerHTML = '';
+                noResults.classList.add('hidden');
+                if(data.length === 0){
+                    noResults.classList.remove('hidden');
+                    return;
+                }
+                const validData = data.filter(b => b.name && b.name !== 'N/A' && b.rank !== 'N/A');
+                if(validData.length === 0) {
+                     noResults.classList.remove('hidden');
+                     grid.innerHTML = `<p class="text-center text-orange-500 col-span-full font-semibold">Data was loaded, but it appears to be invalid or empty after processing.</p>`;
+                     return;
+                }
+                validData.forEach(b => {
+                    const card = createBillionaireCard(b);
+                    grid.insertAdjacentHTML('beforeend', card);
+                });
+            }
+
+            // Event Listeners
+            randomBtn.addEventListener('click', () => {
+                if (billionaires.length > 0) {
+                    const validBillionaires = billionaires.filter(b => b.name && b.name !== 'N/A');
+                    if(validBillionaires.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * validBillionaires.length);
+                        const randomBillionaire = validBillionaires[randomIndex];
+                        grid.innerHTML = createBillionaireCard(randomBillionaire);
+                        grid.className = 'grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-6 max-w-md mx-auto'; 
+                    }
+                }
+            });
+            
+            showAllBtn.addEventListener('click', () => {
+                grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'; // Reset grid class
+                displayBillionaires(billionaires);
+            });
+
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const filteredBillionaires = billionaires.filter(b => 
+                    (b.name && b.name.toLowerCase().includes(searchTerm)) ||
+                    (b.country && b.country.toLowerCase().includes(searchTerm)) ||
+                    (b.source && b.source.toLowerCase().includes(searchTerm)) // Search by source/company
+                );
+                grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'; // Reset grid class
+                displayBillionaires(filteredBillionaires);
+            });
+        });
+    </script>
+</body>
+</html>
